@@ -109,7 +109,63 @@ post:
 	return body, resp, nil
 }
 
-func (c *client) post(ctx context.Context, receiptRequest *ReceiptRequest) ([]byte, error) {
+func (c *client) VerifyRaw(ctx context.Context, req *ReceiptRequestRaw) ([]byte, *ReceiptResponse, error) {
+post:
+	body, err := c.post(ctx, req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resp := &ReceiptResponse{}
+	err = json.Unmarshal(
+		bytes.Map(func(r rune) rune {
+			if unicode.IsControl(r) {
+				return -1
+			}
+			return r
+		}, body),
+		resp,
+	)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "could not unmarshal app store response")
+	}
+
+	if c.autofixEnvironment {
+		// Auto fix but only once.
+		c.autofixEnvironment = false
+
+		switch resp.Status {
+		case ReceiptResponseStatusSandboxReceiptSentToProduction:
+			// On a 21007 status, retry the request in the sandbox environment (only if the
+			// current environment is production – to avoid unexpected loop).
+			//
+			// These are receipts from Apple review team.
+			if c.isProduction() {
+				c.verificationURL = sandboxReceiptVerificationURL
+				goto post
+			}
+		case ReceiptResponseStatusProductionReceiptSentToSandbox:
+			// On a 21008 status, retry the request in the production environment (only if
+			// the current environment is sandbox – to avoid unexpected loop).
+			if c.isSandbox() {
+				c.verificationURL = productionReceiptVerificationURL
+				goto post
+			}
+		default:
+			// TODO: Retry at least once when an App Store internal error occurs here:
+			// 	if resp.Status >= 21100 && resp.Status <= 21199 {
+			// 		if resp.IsRetryable {
+			// 			goto post
+			// 		}
+			// 	}
+			break
+		}
+	}
+
+	return body, resp, nil
+}
+
+func (c *client) post(ctx context.Context, receiptRequest interface{}) ([]byte, error) {
 	// Prepare request:
 
 	reqJSON, err := json.Marshal(receiptRequest)

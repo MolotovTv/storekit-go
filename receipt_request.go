@@ -22,3 +22,20 @@ type ReceiptRequest struct {
 	// for any subscriptions.
 	ExcludeOldTransactions bool `json:"exclude-old-transactions,omitempty"`
 }
+
+type ReceiptRequestRaw struct {
+	// ReceiptData contains the raw receipt data. Required.
+	ReceiptData string `json:"receipt-data"`
+
+	// Password is your app’s shared secret (a hexadecimal string). Required.
+	//
+	// Use this field only for receipts that contain auto-renewable subscriptions.
+	Password string `json:"password"`
+
+	// ExcludeOldTransactions is only used for app receipts that contain
+	// auto-renewable or non-renewing subscriptions.
+	//
+	// Set this value to true for the response to include only the latest renewal transaction
+	// for any subscriptions.
+	ExcludeOldTransactions bool `json:"exclude-old-transactions,omitempty"`
+}
